@@ -9,12 +9,88 @@ Copyright 2022-2024, Levente Hunyadi
 import logging
 import os
 import os.path
+import re
 import shutil
 import subprocess
-from typing import Literal
+from typing import Any, Optional, Literal
+import yaml
 
 LOGGER = logging.getLogger(__name__)
 
+
+def _extract_mermaid_scale( content: str) -> Optional[float]:
+    """Extract scale from Mermaid YAML front matter configuration."""
+    try:
+        properties = MermaidScanner().read(content)
+        config = properties.get("config", None) if properties else None
+        return config.get("scale", None) if config else None
+    except Exception as ex:
+        LOGGER.warning("Failed to extract Mermaid properties: %s", ex)
+        return None
+        
+def extract_value(pattern: str, text: str) -> tuple[Optional[str], str]:
+    values: list[str] = []
+
+    def _repl_func(matchobj: re.Match[str]) -> str:
+        values.append(matchobj.group(1))
+        return ""
+
+    text = re.sub(pattern, _repl_func, text, count=1, flags=re.ASCII)
+    value = values[0] if values else None
+    return value, text
+
+
+def extract_frontmatter_block(text: str) -> tuple[Optional[str], str]:
+    "Extracts the front-matter from a Markdown document as a blob of unparsed text."
+
+    return extract_value(r"(?ms)\A---$(.+?)^---$", text)
+
+
+def extract_frontmatter_properties(text: str) -> tuple[Optional[dict[str, Any]], str]:
+    "Extracts the front-matter from a Markdown document as a dictionary."
+
+    block, text = extract_frontmatter_block(text)
+
+    properties: Optional[dict[str, Any]] = None
+    if block is not None:
+        data = yaml.safe_load(block)
+        if isinstance(data, dict):
+            properties = data
+
+    return properties, text
+
+class MermaidScanner:
+    """
+    Extracts properties from the JSON/YAML front-matter of a Mermaid diagram.
+    """
+    
+    def read(self, content: str) -> dict:
+        """
+        Extracts rendering preferences from a Mermaid front-matter content.
+
+        ```
+        ---
+        title: Tiny flow diagram
+        config:
+            scale: 1
+        ---
+        flowchart LR
+            A[Component A] --> B[Component B]
+            B --> C[Component C]
+        ```
+        """
+
+        properties, text = extract_frontmatter_properties(content)
+        if properties is not None:
+            title = properties.get("title", None)
+            config = properties.get("config", None)
+
+            return {
+                "title": title,
+                "config": config
+            }
+
+        return {"title": None, "config": None}
 
 def is_docker() -> bool:
     "True if the application is running in a Docker container."
@@ -47,7 +123,7 @@ def render(source: str, output_format: Literal["png", "svg"] = "png") -> bytes:
     "Generates a PNG or SVG image from a Mermaid diagram source."
 
     filename = f"tmp_mermaid.{output_format}"
-
+    scale = _extract_mermaid_scale(source) or 2
     cmd = [
         get_mmdc(),
         "--input",
@@ -59,7 +135,7 @@ def render(source: str, output_format: Literal["png", "svg"] = "png") -> bytes:
         "--backgroundColor",
         "transparent",
         "--scale",
-        "2",
+        str(scale),
     ]
     root = os.path.dirname(__file__)
     if is_docker():
