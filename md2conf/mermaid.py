@@ -12,6 +12,7 @@ import os.path
 import re
 import shutil
 import subprocess
+import tempfile
 from typing import Any, Optional, Literal
 import yaml
 
@@ -122,7 +123,10 @@ def has_mmdc() -> bool:
 def render(source: str, output_format: Literal["png", "svg"] = "png") -> bytes:
     "Generates a PNG or SVG image from a Mermaid diagram source."
 
-    filename = f"tmp_mermaid.{output_format}"
+    # Use system temp directory to store the output file instead of current working directory
+    with tempfile.NamedTemporaryFile(suffix=f".{output_format}", delete=False) as f:
+        filename = f.name
+    #filename = f"tmp_mermaid.{output_format}"
     scale = _extract_mermaid_scale(source) or 2
     cmd = [
         get_mmdc(),
