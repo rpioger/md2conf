@@ -475,6 +475,115 @@ The following table shows standard highlight colors (CSS `background-color`) tha
 
 If *md2conf* encounters a Markdown link that points to a file in the directory hierarchy being synchronized, it automatically uploads the file as an attachment to the Confluence page. Activating the link in Confluence downloads the file. Typical examples include PDFs (`*.pdf`), word processor documents (`*.docx`), spreadsheets (`*.xlsx`), plain text files (`*.txt`) or logs (`*.log`). The MIME type is set based on the file type.
 
+### External markdown file references
+
+By default, *md2conf* only resolves links to markdown files that are within the directory hierarchy being synchronized. This makes sense when publishing an entire documentation tree, but can be limiting when publishing individual pages that reference content in other repositories or directories.
+
+The `--enable-external-references` option allows *md2conf* to resolve relative links to markdown files located outside the synchronized directory, provided those external files have a `confluence-page-id` tag. This enables single-page publishing with cross-references to other published pages.
+
+#### Use case
+
+Consider the following scenario:
+
+```
+Repository A:
+  - docs/service-a.md  (has: <!-- confluence-page-id: 123456 -->)
+
+Repository B:
+  - docs/service-b.md  (contains: [Service A](../../repo-a/docs/service-a.md))
+```
+
+Without external references, publishing `service-b.md` would fail or warn about the broken link. With `--enable-external-references`, *md2conf* will:
+
+1. Parse the external file `../../repo-a/docs/service-a.md`
+2. Extract its `confluence-page-id` (123456)
+3. Generate a proper Confluence URL to page 123456
+4. Replace the relative link with the absolute Confluence URL
+
+#### Configuration
+
+**Command-line:**
+
+```sh
+python -m md2conf \
+  --domain example.atlassian.net \
+  --space-key SPACE \
+  --enable-external-references \
+  path/to/service-b.md
+```
+
+**Python API:**
+
+```python
+from md2conf.api import ConfluenceAPI
+from md2conf.environment import ConnectionProperties
+from md2conf.options import ConfluencePageID, ConverterOptions, DocumentOptions, ImageLayoutOptions, LayoutOptions, TableLayoutOptions
+from md2conf.publisher import Publisher
+
+properties = ConnectionProperties(
+    domain=str() or None,
+    base_path=str() or None,
+    space_key=str() or None,
+    api_url=str() or None,
+    user_name=str() or None,
+    api_key=str(),
+    headers={str(): str()} or None,
+)
+options = DocumentOptions(
+    root_page_id=ConfluencePageID() or None,
+    keep_hierarchy=bool(),
+    title_prefix=str() or None,
+    generated_by=str() or None,
+    skip_update=bool(),
+    converter=ConverterOptions(
+        heading_anchors=bool(),
+        force_valid_url=bool(),
+        skip_title_heading=bool(),
+        prefer_raster=bool(),
+        render_drawio=bool(),
+        render_mermaid=bool(),
+        render_plantuml=bool(),
+        render_latex=bool(),
+        diagram_output_format='png' or 'svg',
+        webui_links=bool(),
+        use_panel=bool(),
+        enable_external_references=bool(),
+        layout=LayoutOptions(
+            image=ImageLayoutOptions(
+                alignment='center' or 'left' or 'right' or None,
+                max_width=int() or None,
+            ),
+            table=TableLayoutOptions(
+                width=int() or None,
+                display_mode='responsive' or 'fixed',
+            ),
+            alignment='center' or 'left' or 'right' or None,
+        ),
+    ),
+    line_numbers=bool(),
+)
+with ConfluenceAPI(properties) as api:
+    Publisher(api, options).process(mdpath)
+```
+
+#### Requirements for external files
+
+For an external markdown file to be resolvable, it must:
+
+1. Exist on the file system at the referenced path
+2. Have a valid `confluence-page-id` tag in the format: `<!-- confluence-page-id: 123456 -->`
+3. Optionally include `confluence-space-key` tag: `<!-- confluence-space-key: SPACE -->`
+
+If the external file doesn't meet these requirements, *md2conf* will respect the `force_valid_url` setting:
+- With `--force-valid-url` (default): Raise an error
+- With `--no-force-valid-url`: Emit a warning and mark the link with ❌
+
+#### Limitations
+
+- External files are not synchronized or updated - only their page IDs are used for link resolution
+- The external file must be accessible on the local file system
+- Changes to external files are not detected - only the page ID is cached per run
+
 ### Setting generated-by prompt text for wiki pages
 
 In order to ensure readers are not editing a generated document, the tool adds a warning message at the top of the Confluence page as an *info panel*. You can customize the text that appears. The text can contain markup as per the [Confluence Storage Format](https://confluence.atlassian.com/doc/confluence-storage-format-790796544.html), and is emitted directly into the *info panel* macro.
@@ -701,6 +810,10 @@ options:
   --no-webui-links      Use hierarchical links including space and page ID. (default)
   --use-panel           Transform admonitions and alerts into a Confluence custom panel.
   --no-use-panel        Use standard Confluence macro types for admonitions and alerts (info, tip, note and warning). (default)
+  --enable-external-references
+                        Enable resolution of links to markdown files outside the directory hierarchy using their confluence-page-id.
+  --no-enable-external-references
+                        Only resolve links within the synchronized directory hierarchy. (default)
   --layout-image-alignment {center,left,right,None}
                         Alignment for block-level images and formulas.
   --layout-image-max-width INT
@@ -711,7 +824,6 @@ options:
                         Set table display mode. (default: responsive)
   --layout-alignment {center,left,right,None}
                         Default alignment for block-level content.
-  --ignore-invalid-url  Emit a warning but otherwise ignore relative URLs that point to ill-specified locations.
   --title-prefix TEXT   String to prepend to Confluence page title for each published page.
   --line-numbers        Inject line numbers in Markdown source to help localize conversion errors.
   --local               Write XHTML-based Confluence Storage Format files locally without invoking Confluence API.
