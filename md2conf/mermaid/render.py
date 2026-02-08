@@ -12,7 +12,7 @@ import os.path
 import shutil
 from typing import Literal
 
-from md2conf.external import execute_subprocess
+from md2conf.subprocess_utils import execute_subprocess
 
 from .config import MermaidConfigProperties
 

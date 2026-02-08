@@ -17,7 +17,7 @@ from typing import Literal
 from urllib.parse import quote
 
 import md2conf
-from md2conf.external import execute_subprocess
+from md2conf.subprocess_utils import execute_subprocess
 
 from .config import PlantUMLConfigProperties
 

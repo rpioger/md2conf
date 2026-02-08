@@ -84,6 +84,7 @@ class ConverterOptions:
     :param diagram_output_format: Target image format for diagrams.
     :param webui_links: When true, convert relative URLs to Confluence Web UI links.
     :param use_panel: Whether to transform admonitions and alerts into a Confluence custom panel.
+    :param enable_external_references: When true, resolve links to markdown files outside the directory hierarchy using their confluence-page-id.
     :param layout: Layout options for content on a Confluence page.
     """
 
@@ -159,6 +160,13 @@ class ConverterOptions:
         metadata=boolean_option(
             "Transform admonitions and alerts into a Confluence custom panel.",
             "Use standard Confluence macro types for admonitions and alerts (info, tip, note and warning).",
+        ),
+    )
+    enable_external_references: bool = field(
+        default=False,
+        metadata=boolean_option(
+            "Enable resolution of links to markdown files outside the directory hierarchy using their confluence-page-id.",
+            "Only resolve links within the synchronized directory hierarchy.",
         ),
     )
     layout: LayoutOptions = field(default_factory=LayoutOptions, metadata=composite_option())
