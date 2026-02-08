@@ -25,7 +25,7 @@ class ExternalReferenceResolver:
     3. Can be successfully parsed
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         self._cache: dict[Path, ConfluencePageMetadata | None] = {}
     
     def resolve(self, markdown_path: Path) -> ConfluencePageMetadata | None:
