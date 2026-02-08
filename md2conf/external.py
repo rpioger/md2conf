@@ -39,7 +39,7 @@ class ExternalReferenceResolver:
             return self._cache[markdown_path]
         
         if not markdown_path.exists():
-            LOGGER.debug(f"External file does not exist: {markdown_path}")
+            LOGGER.debug("External file does not exist: %s", markdown_path)
             self._cache[markdown_path] = None
             return None
         
@@ -49,7 +49,7 @@ class ExternalReferenceResolver:
             
             # Must have a page_id to be resolvable
             if document.properties.page_id is None:
-                LOGGER.debug(f"External file {markdown_path} has no confluence-page-id tag")
+                LOGGER.debug("External file %s has no confluence-page-id tag", markdown_path)
                 self._cache[markdown_path] = None
                 return None
             
@@ -61,10 +61,10 @@ class ExternalReferenceResolver:
             )
             
             self._cache[markdown_path] = metadata
-            LOGGER.info(f"Resolved external reference: {markdown_path} -> page {metadata.page_id}")
+            LOGGER.info("Resolved external reference: %s -> page %s", markdown_path, metadata.page_id)
             return metadata
             
         except Exception as e:
-            LOGGER.warning(f"Failed to resolve external reference {markdown_path}: {e}")
+            LOGGER.warning("Failed to resolve external reference %s: %s", markdown_path, e)
             self._cache[markdown_path] = None
             return None

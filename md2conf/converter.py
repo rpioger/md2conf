@@ -581,7 +581,7 @@ class ConfluenceStorageFormatConverter(NodeVisitor):
         if link_metadata is None and self.external_resolver is not None:
             link_metadata = self.external_resolver.resolve(absolute_path)
             if link_metadata:
-                LOGGER.info(f"Using external reference for: {absolute_path}")
+                LOGGER.info("Using external reference for: %s", absolute_path)
         
         # Existing behavior: respect force_valid_url setting
         if link_metadata is None:
