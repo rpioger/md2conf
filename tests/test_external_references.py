@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from md2conf.external import ExternalReferenceResolver
+from md2conf.reference import ExternalReferenceResolver
 
 logging.basicConfig(level=logging.INFO)
 

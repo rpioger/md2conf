@@ -1,5 +1,5 @@
 """
-External reference resolution for markdown files outside the sync directory.
+Publish Markdown files to Confluence wiki.
 
 Copyright 2022-2026, Levente Hunyadi
 
@@ -7,64 +7,60 @@ Copyright 2022-2026, Levente Hunyadi
 """
 
 import logging
-from pathlib import Path
-
-from .metadata import ConfluencePageMetadata
-from .scanner import Scanner
+import re
+import subprocess
+from typing import Sequence
 
 LOGGER = logging.getLogger(__name__)
 
 
-class ExternalReferenceResolver:
+def execute_subprocess(command: Sequence[str], data: bytes, *, application: str) -> bytes:
     """
-    Resolves references to markdown files outside the current directory hierarchy.
-    
-    Files are considered resolvable if they:
-    1. Exist on the file system
-    2. Have a valid confluence-page-id tag
-    3. Can be successfully parsed
+    Executes a subprocess, feeding input to stdin, and capturing output from stdout.
+
+    This function handles the common pattern of:
+
+    1. executing a command with stdin/stdout/stderr pipes,
+    2. passing input data as binary (e.g. UTF-8 encoded),
+    3. capturing binary output,
+    4. error handling with exit codes and stderr.
+
+    :param command: Full command with arguments to execute.
+    :param data: Application input as `bytes`.
+    :param application: Human-readable application name for error messages (e.g., "Mermaid", "PlantUML").
+    :returns: Application output as `bytes`.
+    :raises RuntimeError: If the subprocess fails with non-zero exit code.
     """
-    
-    def __init__(self) -> None:
-        self._cache: dict[Path, ConfluencePageMetadata | None] = {}
-    
-    def resolve(self, markdown_path: Path) -> ConfluencePageMetadata | None:
-        """
-        Extract page_id, space_key, and title from external markdown file.
-        
-        :param markdown_path: Absolute path to the markdown file
-        :returns: ConfluencePageMetadata if resolvable, None otherwise
-        """
-        if markdown_path in self._cache:
-            return self._cache[markdown_path]
-        
-        if not markdown_path.exists():
-            LOGGER.debug("External file does not exist: %s", markdown_path)
-            self._cache[markdown_path] = None
-            return None
-        
-        try:
-            # Parse the file using Scanner
-            document = Scanner().read(markdown_path)
-            
-            # Must have a page_id to be resolvable
-            if document.properties.page_id is None:
-                LOGGER.debug("External file %s has no confluence-page-id tag", markdown_path)
-                self._cache[markdown_path] = None
-                return None
-            
-            metadata = ConfluencePageMetadata(
-                page_id=document.properties.page_id,
-                space_key=document.properties.space_key or "UNKNOWN",
-                title=document.properties.title or markdown_path.stem,
-                synchronized=False  # External files are not synchronized
-            )
-            
-            self._cache[markdown_path] = metadata
-            LOGGER.info("Resolved external reference: %s -> page %s", markdown_path, metadata.page_id)
-            return metadata
-            
-        except Exception as e:
-            LOGGER.warning("Failed to resolve external reference %s: %s", markdown_path, e)
-            self._cache[markdown_path] = None
-            return None
+
+    LOGGER.debug("Executing: %s", " ".join(command))
+
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = proc.communicate(input=data)
+
+    if proc.returncode:
+        message = f"failed to execute {application}; exit code: {proc.returncode}"
+        LOGGER.error("Failed to execute %s; exit code: %d", application, proc.returncode)
+        messages = [message]
+        if stdout:
+            try:
+                console_output = stdout.decode("utf-8")
+                LOGGER.error(console_output)
+                messages.append(f"output:\n{console_output}")
+            except UnicodeDecodeError:
+                LOGGER.error("%s returned binary data on stdout", application)
+                pass
+        if stderr:
+            try:
+                console_error = stderr.decode("utf-8")
+                LOGGER.error(console_error)
+
+                # omit Node.js exception stack trace
+                console_error = re.sub(r"^\s+at.*:\d+:\d+\)$\n", "", console_error, flags=re.MULTILINE).rstrip()
+
+                messages.append(f"error:\n{console_error}")
+            except UnicodeDecodeError:
+                LOGGER.error("%s returned binary data on stderr", application)
+                pass
+        raise RuntimeError("\n".join(messages))
+
+    return stdout

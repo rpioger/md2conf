@@ -29,7 +29,6 @@ from .drawio.extension import DrawioExtension
 from .emoticon import emoji_to_emoticon
 from .environment import PageError
 from .extension import ExtensionOptions, MarketplaceExtension
-from .external import ExternalReferenceResolver
 from .formatting import FormattingContext, ImageAlignment, ImageAttributes
 from .image import ImageGenerator, ImageGeneratorOptions
 from .latex import render_latex
@@ -39,6 +38,7 @@ from .metadata import ConfluenceSiteMetadata
 from .options import ConfluencePageID, ConverterOptions, DocumentOptions
 from .plantuml.extension import PlantUMLExtension
 from .png import remove_png_chunks
+from .reference import ExternalReferenceResolver
 from .scanner import ScannedDocument, Scanner
 from .serializer import JsonType
 from .toc import TableOfContentsBuilder
