@@ -38,6 +38,7 @@ from .metadata import ConfluenceSiteMetadata
 from .options import ConfluencePageID, ConverterOptions, DocumentOptions
 from .plantuml.extension import PlantUMLExtension
 from .png import remove_png_chunks
+from .reference import ExternalReferenceResolver
 from .scanner import ScannedDocument, Scanner
 from .serializer import JsonType
 from .toc import TableOfContentsBuilder
@@ -425,6 +426,7 @@ class ConfluenceStorageFormatConverter(NodeVisitor):
 
     image_generator: ImageGenerator
     extensions: list[MarketplaceExtension]
+    external_resolver: ExternalReferenceResolver | None
 
     def __init__(
         self,
@@ -460,6 +462,10 @@ class ConfluenceStorageFormatConverter(NodeVisitor):
             MermaidExtension(self.image_generator, ExtensionOptions(render=self.options.render_mermaid)),
             PlantUMLExtension(self.image_generator, ExtensionOptions(render=self.options.render_plantuml)),
         ]
+
+        self.external_resolver: ExternalReferenceResolver | None = None
+        if self.options.enable_external_references:
+            self.external_resolver = ExternalReferenceResolver()
 
     def _transform_heading(self, heading: ElementType) -> None:
         """
@@ -570,6 +576,14 @@ class ConfluenceStorageFormatConverter(NodeVisitor):
         """
 
         link_metadata = self.page_metadata.get(absolute_path)
+        
+        # NEW: Try external reference resolution if not in local index
+        if link_metadata is None and self.external_resolver is not None:
+            link_metadata = self.external_resolver.resolve(absolute_path)
+            if link_metadata:
+                LOGGER.info("Using external reference for: %s", absolute_path)
+        
+        # Existing behavior: respect force_valid_url setting
         if link_metadata is None:
             self._anchor_warn_or_raise(anchor, f"unable to find matching page for URL: {relative_url.geturl()}")
             return None

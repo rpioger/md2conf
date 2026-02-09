@@ -519,6 +519,80 @@ class TestConversion(TypedTestCase):
 
         self.assertEqual(actual, expected)
 
+    def test_external_references_enabled(self) -> None:
+        """Test that external references are resolved when enabled."""
+        import tempfile
+        from md2conf.metadata import ConfluencePageMetadata
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            
+            # Create external markdown file with page-id
+            external_file = tmpdir_path / "external.md"
+            external_file.write_text(
+                "<!-- confluence-page-id: 123456 -->\n"
+                "<!-- confluence-space-key: EXT -->\n"
+                "# External Page\n"
+            )
+            
+            # Create source file with link to external file
+            source_file = tmpdir_path / "source.md"
+            source_file.write_text(
+                "<!-- confluence-page-id: 789012 -->\n"
+                "# Source Page\n\n"
+                "[Link to external](./external.md)\n"
+            )
+            
+            # Test with external references enabled
+            _, doc = ConfluenceDocument.create(
+                source_file,
+                DocumentOptions(converter=ConverterOptions(enable_external_references=True)),
+                tmpdir_path,
+                self.site_metadata,
+                self.page_metadata,
+            )
+            
+            xhtml = doc.xhtml()
+            # Should contain a link to the external page
+            self.assertIn("123456", xhtml)
+            self.assertIn("https://example.com", xhtml)
+    
+    def test_external_references_disabled(self) -> None:
+        """Test that external references fail when disabled (default behavior)."""
+        import tempfile
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir_path = Path(tmpdir)
+            
+            # Create external markdown file with page-id
+            external_file = tmpdir_path / "external.md"
+            external_file.write_text(
+                "<!-- confluence-page-id: 123456 -->\n"
+                "# External Page\n"
+            )
+            
+            # Create source file with link to external file
+            source_file = tmpdir_path / "source.md"
+            source_file.write_text(
+                "<!-- confluence-page-id: 789012 -->\n"
+                "# Source Page\n\n"
+                "[Link to external](./external.md)\n"
+            )
+            
+            # Test with external references disabled and ignore invalid URLs
+            _, doc = ConfluenceDocument.create(
+                source_file,
+                DocumentOptions(converter=ConverterOptions(enable_external_references=False, force_valid_url=False)),
+                tmpdir_path,
+                self.site_metadata,
+                self.page_metadata,
+            )
+            
+            xhtml = doc.xhtml()
+            # Should mark the link as broken with ❌
+            self.assertIn("❌", xhtml)
+            self.assertNotIn("123456", xhtml)
+
 
 if __name__ == "__main__":
     unittest.main()
